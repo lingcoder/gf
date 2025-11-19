@@ -15,6 +15,7 @@ import (
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gcode"
 	"github.com/gogf/gf/v2/errors/gerror"
+	"github.com/gogf/gf/v2/text/gstr"
 )
 
 // DoExec commits the sql string and its arguments to underlying driver
@@ -42,22 +43,32 @@ func (d *Driver) DoExec(ctx context.Context, link gdb.Link, sql string, args ...
 		}
 	}
 
-	// Check if it is an insert operation with primary key.
-	if value := ctx.Value(internalPrimaryKeyInCtx); value != nil {
+	// Check if user specified RETURNING fields
+	if returningFields := ctx.Value(internalReturningInCtx); returningFields != nil {
+		if fields, ok := returningFields.([]string); ok && len(fields) > 0 {
+			// User explicitly specified RETURNING fields
+			sql += " " + buildReturningClause(fields)
+			isUseCoreDoExec = false
+		}
+	} else if value := ctx.Value(internalPrimaryKeyInCtx); value != nil {
+		// Fall back to automatic primary key RETURNING
 		var ok bool
 		pkField, ok = value.(gdb.TableField)
 		if !ok {
+			isUseCoreDoExec = true
+		} else if pkField.Name != "" && strings.Contains(sql, "INSERT INTO") {
+			// Automatic RETURNING for INSERT with primary key
+			primaryKey = pkField.Name
+			sql += fmt.Sprintf(` RETURNING "%s"`, primaryKey)
+			isUseCoreDoExec = false
+		} else {
 			isUseCoreDoExec = true
 		}
 	} else {
 		isUseCoreDoExec = true
 	}
 
-	// check if it is an insert operation.
-	if !isUseCoreDoExec && pkField.Name != "" && strings.Contains(sql, "INSERT INTO") {
-		primaryKey = pkField.Name
-		sql += fmt.Sprintf(` RETURNING "%s"`, primaryKey)
-	} else {
+	if isUseCoreDoExec {
 		// use default DoExec
 		return d.Core.DoExec(ctx, link, sql, args...)
 	}
@@ -107,4 +118,51 @@ func (d *Driver) DoExec(ctx context.Context, link gdb.Link, sql string, args ...
 	}
 
 	return Result{}, nil
+}
+
+// buildReturningClause builds the RETURNING clause for PostgreSQL.
+// It supports:
+// - Simple field names: RETURNING id, name
+// - Wildcard: RETURNING *
+// - PostgreSQL 18+ OLD/NEW syntax: RETURNING OLD.id, NEW.id, OLD.*, NEW.*
+func buildReturningClause(fields []string) string {
+	if len(fields) == 0 {
+		return ""
+	}
+
+	var quotedFields []string
+	for _, field := range fields {
+		field = strings.TrimSpace(field)
+		if field == "*" {
+			quotedFields = append(quotedFields, "*")
+		} else if strings.HasPrefix(strings.ToUpper(field), "OLD.") {
+			// PostgreSQL 18+ OLD.* or OLD.field_name syntax
+			parts := strings.SplitN(field, ".", 2)
+			if len(parts) == 2 {
+				if parts[1] == "*" {
+					quotedFields = append(quotedFields, "OLD.*")
+				} else {
+					quotedFields = append(quotedFields, fmt.Sprintf(`OLD."%s"`, parts[1]))
+				}
+			} else {
+				quotedFields = append(quotedFields, fmt.Sprintf(`"%s"`, field))
+			}
+		} else if strings.HasPrefix(strings.ToUpper(field), "NEW.") {
+			// PostgreSQL 18+ NEW.* or NEW.field_name syntax
+			parts := strings.SplitN(field, ".", 2)
+			if len(parts) == 2 {
+				if parts[1] == "*" {
+					quotedFields = append(quotedFields, "NEW.*")
+				} else {
+					quotedFields = append(quotedFields, fmt.Sprintf(`NEW."%s"`, parts[1]))
+				}
+			} else {
+				quotedFields = append(quotedFields, fmt.Sprintf(`"%s"`, field))
+			}
+		} else {
+			quotedFields = append(quotedFields, fmt.Sprintf(`"%s"`, field))
+		}
+	}
+
+	return "RETURNING " + gstr.Join(quotedFields, ", ")
 }

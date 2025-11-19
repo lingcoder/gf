@@ -87,22 +87,24 @@ type HookInsertInput struct {
 // HookUpdateInput holds the parameters for update hook operation.
 type HookUpdateInput struct {
 	internalParamHookUpdate
-	Model     *Model // Current operation Model.
-	Table     string // The table name that to be used. Update this attribute to change target table name.
-	Schema    string // The schema name that to be used. Update this attribute to change target schema name.
-	Data      any    // Data can be type of: map[string]any/string. You can use type assertion on `Data`.
-	Condition string // The where condition string for updating.
-	Args      []any  // The arguments for sql place-holders.
+	Model     *Model   // Current operation Model.
+	Table     string   // The table name that to be used. Update this attribute to change target table name.
+	Schema    string   // The schema name that to be used. Update this attribute to change target schema name.
+	Data      any      // Data can be type of: map[string]any/string. You can use type assertion on `Data`.
+	Condition string   // The where condition string for updating.
+	Args      []any    // The arguments for sql place-holders.
+	Returning []string // Fields to be returned after UPDATE operation (RETURNING clause).
 }
 
 // HookDeleteInput holds the parameters for delete hook operation.
 type HookDeleteInput struct {
 	internalParamHookDelete
-	Model     *Model // Current operation Model.
-	Table     string // The table name that to be used. Update this attribute to change target table name.
-	Schema    string // The schema name that to be used. Update this attribute to change target schema name.
-	Condition string // The where condition string for deleting.
-	Args      []any  // The arguments for sql place-holders.
+	Model     *Model   // Current operation Model.
+	Table     string   // The table name that to be used. Update this attribute to change target table name.
+	Schema    string   // The schema name that to be used. Update this attribute to change target schema name.
+	Condition string   // The where condition string for deleting.
+	Args      []any    // The arguments for sql place-holders.
+	Returning []string // Fields to be returned after DELETE operation (RETURNING clause).
 }
 
 const (

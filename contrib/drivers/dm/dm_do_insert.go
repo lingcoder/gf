@@ -34,6 +34,11 @@ func (d *Driver) DoInsert(
 		)
 	}
 
+	// If RETURNING clause is specified, pass it through context
+	if len(option.Returning) > 0 {
+		ctx = context.WithValue(ctx, internalReturningInCtx, option.Returning)
+	}
+
 	return d.Core.DoInsert(ctx, link, table, list, option)
 }
 

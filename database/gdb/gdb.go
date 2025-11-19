@@ -628,6 +628,10 @@ type DoInsertOption struct {
 
 	// BatchCount is the batch count for batch inserting.
 	BatchCount int
+
+	// Returning specifies the fields to be returned after INSERT operation (RETURNING clause).
+	// This is supported by PostgreSQL, SQLite 3.35.0+, SQL Server (OUTPUT), MariaDB 10.5.0+, DaMeng, etc.
+	Returning []string
 }
 
 // TableField is the struct for table field.

@@ -346,6 +346,7 @@ func (m *Model) formatDoInsertOption(insertOption InsertOption, columnNames []st
 	option = DoInsertOption{
 		InsertOption: insertOption,
 		BatchCount:   m.getBatch(),
+		Returning:    m.returning,
 	}
 	if insertOption != InsertOptionSave {
 		return

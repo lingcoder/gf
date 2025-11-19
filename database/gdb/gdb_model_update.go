@@ -109,6 +109,7 @@ func (m *Model) Update(dataAndWhere ...any) (result sql.Result, err error) {
 		Data:      newData,
 		Condition: conditionStr,
 		Args:      m.mergeArguments(conditionArgs),
+		Returning: m.returning,
 	}
 	return in.Next(ctx)
 }

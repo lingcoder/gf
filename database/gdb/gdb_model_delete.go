@@ -68,6 +68,7 @@ func (m *Model) Delete(where ...any) (result sql.Result, err error) {
 			Data:      dataHolder,
 			Condition: conditionStr,
 			Args:      append([]any{dataValue}, conditionArgs...),
+			Returning: m.returning,
 		}
 		return in.Next(ctx)
 	}
@@ -84,6 +85,7 @@ func (m *Model) Delete(where ...any) (result sql.Result, err error) {
 		Schema:    m.schema,
 		Condition: conditionStr,
 		Args:      conditionArgs,
+		Returning: m.returning,
 	}
 	return in.Next(ctx)
 }

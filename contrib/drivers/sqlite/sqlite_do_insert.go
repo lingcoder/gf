@@ -4,42 +4,23 @@
 // If a copy of the MIT was not distributed with this file,
 // You can obtain one at https://github.com/gogf/gf.
 
-package pgsql
+package sqlite
 
 import (
 	"context"
 	"database/sql"
 
 	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/errors/gcode"
-	"github.com/gogf/gf/v2/errors/gerror"
+	"github.com/gogf/gf/v2/os/gctx"
+)
+
+const (
+	internalReturningInCtx gctx.StrKey = "returning_fields"
 )
 
 // DoInsert inserts or updates data for given table.
+// SQLite supports RETURNING clause since version 3.35.0 (2021-03-12).
 func (d *Driver) DoInsert(ctx context.Context, link gdb.Link, table string, list gdb.List, option gdb.DoInsertOption) (result sql.Result, err error) {
-	switch option.InsertOption {
-	case gdb.InsertOptionReplace:
-		return nil, gerror.NewCode(
-			gcode.CodeNotSupported,
-			`Replace operation is not supported by pgsql driver`,
-		)
-
-	case gdb.InsertOptionDefault:
-		// Get primary key field for automatic RETURNING if no explicit RETURNING is set
-		if len(option.Returning) == 0 {
-			tableFields, err := d.GetCore().GetDB().TableFields(ctx, table)
-			if err == nil {
-				for _, field := range tableFields {
-					if field.Key == "pri" {
-						pkField := *field
-						ctx = context.WithValue(ctx, internalPrimaryKeyInCtx, pkField)
-						break
-					}
-				}
-			}
-		}
-	}
-
 	// If RETURNING clause is specified, pass it through context
 	if len(option.Returning) > 0 {
 		ctx = context.WithValue(ctx, internalReturningInCtx, option.Returning)
