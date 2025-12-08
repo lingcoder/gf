@@ -253,6 +253,11 @@ func (h *HookUpdateInput) Next(ctx context.Context) (result sql.Result, err erro
 			h.Model.db.GetCore().schema = h.originalSchemaName.String()
 		}()
 	}
+
+	// Inject RETURNING fields into context for database drivers that support it.
+	if len(h.Returning) > 0 {
+		ctx = InjectReturning(ctx, h.Returning)
+	}
 	return h.Model.db.DoUpdate(ctx, h.link, h.Table, h.Data, h.Condition, h.Args...)
 }
 
@@ -299,6 +304,11 @@ func (h *HookDeleteInput) Next(ctx context.Context) (result sql.Result, err erro
 		defer func() {
 			h.Model.db.GetCore().schema = h.originalSchemaName.String()
 		}()
+	}
+
+	// Inject RETURNING fields into context for database drivers that support it.
+	if len(h.Returning) > 0 {
+		ctx = InjectReturning(ctx, h.Returning)
 	}
 	return h.Model.db.DoDelete(ctx, h.link, h.Table, h.Condition, h.Args...)
 }

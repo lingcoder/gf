@@ -13,24 +13,17 @@ import (
 	"strings"
 
 	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/os/gctx"
 	"github.com/gogf/gf/v2/text/gstr"
-)
-
-const (
-	internalReturningInCtx gctx.StrKey = "returning_fields"
 )
 
 // DoExec commits the sql string and its arguments to underlying driver
 // through given link object and returns the execution result.
 // DaMeng database supports RETURNING clause similar to PostgreSQL.
 func (d *Driver) DoExec(ctx context.Context, link gdb.Link, sql string, args ...any) (result sql.Result, err error) {
-	// Check if user specified RETURNING fields
-	if returningFields := ctx.Value(internalReturningInCtx); returningFields != nil {
-		if fields, ok := returningFields.([]string); ok && len(fields) > 0 {
-			// Add RETURNING clause to SQL
-			sql += " " + buildReturningClause(fields)
-		}
+	// Check if user specified RETURNING fields (from context or DoInsertOption)
+	if returningFields := gdb.GetReturningFromCtx(ctx); len(returningFields) > 0 {
+		// Add RETURNING clause to SQL
+		sql += " " + buildReturningClause(returningFields)
 	}
 
 	// Use default DoExec

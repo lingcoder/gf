@@ -20,17 +20,10 @@ import (
 // through given link object and returns the execution result.
 // It supports RETURNING clause for SQLite 3.35.0+ (2021-03-12).
 func (d *Driver) DoExec(ctx context.Context, link gdb.Link, sql string, args ...any) (result sql.Result, err error) {
-	// Check if user specified RETURNING fields
-	if returningFields := ctx.Value(internalReturningInCtx); returningFields != nil {
-		if fields, ok := returningFields.([]string); ok && len(fields) > 0 {
-			// Add RETURNING clause to SQL
-			sql += " " + buildReturningClause(fields)
-
-			// When RETURNING is used, we need to execute as a query instead of exec
-			// to retrieve the returned values
-			// However, for backward compatibility, we'll still return sql.Result
-			// The actual handling of returned values would need additional work
-		}
+	// Check if user specified RETURNING fields (from context or DoInsertOption)
+	if returningFields := gdb.GetReturningFromCtx(ctx); len(returningFields) > 0 {
+		// Add RETURNING clause to SQL
+		sql += " " + buildReturningClause(returningFields)
 	}
 
 	// Use default DoExec

@@ -11,11 +11,6 @@ import (
 	"database/sql"
 
 	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/os/gctx"
-)
-
-const (
-	internalReturningInCtx gctx.StrKey = "returning_fields"
 )
 
 // DoInsert inserts or updates data for given table.
@@ -23,7 +18,7 @@ const (
 func (d *Driver) DoInsert(ctx context.Context, link gdb.Link, table string, list gdb.List, option gdb.DoInsertOption) (result sql.Result, err error) {
 	// If RETURNING clause is specified, pass it through context
 	if len(option.Returning) > 0 {
-		ctx = context.WithValue(ctx, internalReturningInCtx, option.Returning)
+		ctx = gdb.InjectReturning(ctx, option.Returning)
 	}
 
 	return d.Core.DoInsert(ctx, link, table, list, option)

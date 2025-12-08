@@ -40,6 +40,11 @@ const (
 	// but returns errors when execute `RowsAffected`. It here ignores the calling of `RowsAffected`
 	// to avoid triggering errors, rather than ignoring errors after they are triggered.
 	ignoreResultKeyInCtx gctx.StrKey = "IgnoreResult"
+
+	// ReturningKeyInCtx is used to pass RETURNING clause fields through context.
+	// This is used by INSERT/UPDATE/DELETE operations that support RETURNING clause.
+	// Database drivers can retrieve this value to append RETURNING clause to SQL statements.
+	ReturningKeyInCtx gctx.StrKey = "ReturningFields"
 )
 
 func (c *Core) injectInternalCtxData(ctx context.Context) context.Context {
@@ -95,4 +100,24 @@ func (c *Core) InjectIgnoreResult(ctx context.Context) context.Context {
 
 func (c *Core) GetIgnoreResultFromCtx(ctx context.Context) bool {
 	return ctx.Value(ignoreResultKeyInCtx) != nil
+}
+
+// InjectReturning injects RETURNING fields into context.
+// This is used by database drivers that support RETURNING clause.
+func InjectReturning(ctx context.Context, fields []string) context.Context {
+	if len(fields) == 0 {
+		return ctx
+	}
+	return context.WithValue(ctx, ReturningKeyInCtx, fields)
+}
+
+// GetReturningFromCtx retrieves RETURNING fields from context.
+// Returns nil if no RETURNING fields are set.
+func GetReturningFromCtx(ctx context.Context) []string {
+	if v := ctx.Value(ReturningKeyInCtx); v != nil {
+		if fields, ok := v.([]string); ok {
+			return fields
+		}
+	}
+	return nil
 }

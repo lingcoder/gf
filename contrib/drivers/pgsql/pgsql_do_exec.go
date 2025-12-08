@@ -43,13 +43,11 @@ func (d *Driver) DoExec(ctx context.Context, link gdb.Link, sql string, args ...
 		}
 	}
 
-	// Check if user specified RETURNING fields
-	if returningFields := ctx.Value(internalReturningInCtx); returningFields != nil {
-		if fields, ok := returningFields.([]string); ok && len(fields) > 0 {
-			// User explicitly specified RETURNING fields
-			sql += " " + buildReturningClause(fields)
-			isUseCoreDoExec = false
-		}
+	// Check if user specified RETURNING fields (from context or DoInsertOption)
+	if returningFields := gdb.GetReturningFromCtx(ctx); len(returningFields) > 0 {
+		// User explicitly specified RETURNING fields
+		sql += " " + buildReturningClause(returningFields)
+		isUseCoreDoExec = false
 	} else if value := ctx.Value(internalPrimaryKeyInCtx); value != nil {
 		// Fall back to automatic primary key RETURNING
 		var ok bool

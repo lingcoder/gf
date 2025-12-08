@@ -25,7 +25,6 @@ type Driver struct {
 
 const (
 	internalPrimaryKeyInCtx gctx.StrKey = "primary_key"
-	internalReturningInCtx  gctx.StrKey = "returning_fields"
 	defaultSchema           string      = "public"
 	quoteChar               string      = `"`
 )

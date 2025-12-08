@@ -42,7 +42,7 @@ func (d *Driver) DoInsert(ctx context.Context, link gdb.Link, table string, list
 
 	// If RETURNING clause is specified, pass it through context
 	if len(option.Returning) > 0 {
-		ctx = context.WithValue(ctx, internalReturningInCtx, option.Returning)
+		ctx = gdb.InjectReturning(ctx, option.Returning)
 	}
 
 	return d.Core.DoInsert(ctx, link, table, list, option)
