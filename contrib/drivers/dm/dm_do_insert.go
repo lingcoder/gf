@@ -23,6 +23,11 @@ import (
 func (d *Driver) DoInsert(
 	ctx context.Context, link gdb.Link, table string, list gdb.List, option gdb.DoInsertOption,
 ) (result sql.Result, err error) {
+	// If RETURNING clause is specified, pass it through context for all insert operations
+	if len(option.Returning) > 0 {
+		ctx = gdb.InjectReturning(ctx, option.Returning)
+	}
+
 	switch option.InsertOption {
 	case gdb.InsertOptionSave:
 		return d.doSave(ctx, link, table, list, option)
@@ -36,10 +41,6 @@ func (d *Driver) DoInsert(
 		return d.doInsertIgnore(ctx, link, table, list, option)
 
 	default:
-		// If RETURNING clause is specified, pass it through context
-		if len(option.Returning) > 0 {
-			ctx = gdb.InjectReturning(ctx, option.Returning)
-		}
 		return d.Core.DoInsert(ctx, link, table, list, option)
 	}
 }

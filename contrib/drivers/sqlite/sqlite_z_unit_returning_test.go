@@ -9,6 +9,8 @@ package sqlite_test
 import (
 	"testing"
 
+	"github.com/gogf/gf/v2/database/gdb"
+
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/test/gtest"
@@ -236,5 +238,122 @@ func Test_Model_Insert_Returning_AutoIncrement(t *testing.T) {
 
 		// The returned id should be available (though we need actual result parsing to verify)
 		// For now, we just verify the operation succeeded
+	})
+}
+
+// Test_Model_Insert_Returning_GetRecords tests getting actual RETURNING data.
+func Test_Model_Insert_Returning_GetRecords(t *testing.T) {
+	table := createTable()
+	defer dropTable(table)
+
+	gtest.C(t, func(t *gtest.T) {
+		// Insert with RETURNING and get the records
+		result, err := db.Model(table).Data(g.Map{
+			"passport":    "returning_user",
+			"password":    "pass123",
+			"nickname":    "Returning User",
+			"create_time": gtime.Now().String(),
+		}).Returning("id", "passport", "nickname").Insert()
+
+		t.AssertNil(err)
+		n, _ := result.RowsAffected()
+		t.Assert(n, 1)
+
+		// Try to get RETURNING records using type assertion
+		rr, ok := result.(gdb.ReturningResult)
+		t.Assert(ok, true)
+		t.AssertNE(rr, nil)
+
+		records := rr.GetRecords()
+		t.Assert(len(records), 1)
+		t.Assert(records[0]["passport"].String(), "returning_user")
+		t.Assert(records[0]["nickname"].String(), "Returning User")
+		t.AssertGT(records[0]["id"].Int(), 0)
+	})
+}
+
+// Test_Model_InsertAndScan tests InsertAndScan method.
+func Test_Model_InsertAndScan(t *testing.T) {
+	table := createTable()
+	defer dropTable(table)
+
+	gtest.C(t, func(t *gtest.T) {
+		type User struct {
+			Id         int    `json:"id"`
+			Passport   string `json:"passport"`
+			Password   string `json:"password"`
+			Nickname   string `json:"nickname"`
+			CreateTime string `json:"create_time"`
+		}
+
+		var user User
+		err := db.Model(table).Data(g.Map{
+			"passport":    "scan_user",
+			"password":    "scan_pass",
+			"nickname":    "Scan User",
+			"create_time": gtime.Now().String(),
+		}).InsertAndScan(&user)
+
+		t.AssertNil(err)
+		t.AssertGT(user.Id, 0)
+		t.Assert(user.Passport, "scan_user")
+		t.Assert(user.Nickname, "Scan User")
+	})
+}
+
+// Test_Model_UpdateAndScan tests UpdateAndScan method.
+func Test_Model_UpdateAndScan(t *testing.T) {
+	table := createInitTable()
+	defer dropTable(table)
+
+	gtest.C(t, func(t *gtest.T) {
+		type User struct {
+			Id         int    `json:"id"`
+			Passport   string `json:"passport"`
+			Password   string `json:"password"`
+			Nickname   string `json:"nickname"`
+			CreateTime string `json:"create_time"`
+		}
+
+		var user User
+		err := db.Model(table).Data(g.Map{
+			"nickname": "Updated Scan Nick",
+		}).Where("id", 1).UpdateAndScan(&user)
+
+		t.AssertNil(err)
+		t.Assert(user.Id, 1)
+		t.Assert(user.Nickname, "Updated Scan Nick")
+	})
+}
+
+// Test_Model_DeleteAndScan tests DeleteAndScan method.
+func Test_Model_DeleteAndScan(t *testing.T) {
+	table := createInitTable()
+	defer dropTable(table)
+
+	gtest.C(t, func(t *gtest.T) {
+		type User struct {
+			Id         int    `json:"id"`
+			Passport   string `json:"passport"`
+			Password   string `json:"password"`
+			Nickname   string `json:"nickname"`
+			CreateTime string `json:"create_time"`
+		}
+
+		// Get original data first
+		original, err := db.Model(table).Where("id", 1).One()
+		t.AssertNil(err)
+
+		var deletedUser User
+		err = db.Model(table).Where("id", 1).DeleteAndScan(&deletedUser)
+
+		t.AssertNil(err)
+		t.Assert(deletedUser.Id, 1)
+		t.Assert(deletedUser.Passport, original["passport"].String())
+
+		// Verify record is deleted
+		record, err := db.Model(table).Where("id", 1).One()
+		t.AssertNil(err)
+		t.Assert(record.IsEmpty(), true)
 	})
 }

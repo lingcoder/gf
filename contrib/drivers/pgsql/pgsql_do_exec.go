@@ -23,6 +23,7 @@ import (
 func (d *Driver) DoExec(ctx context.Context, link gdb.Link, sql string, args ...any) (result sql.Result, err error) {
 	var (
 		isUseCoreDoExec bool   = false // Check whether the default method needs to be used
+		isUserReturning bool   = false // User explicitly specified RETURNING fields
 		primaryKey      string = ""
 		pkField         gdb.TableField
 	)
@@ -48,6 +49,7 @@ func (d *Driver) DoExec(ctx context.Context, link gdb.Link, sql string, args ...
 		// User explicitly specified RETURNING fields
 		sql += " " + buildReturningClause(returningFields)
 		isUseCoreDoExec = false
+		isUserReturning = true
 	} else if value := ctx.Value(internalPrimaryKeyInCtx); value != nil {
 		// Fall back to automatic primary key RETURNING
 		var ok bool
@@ -71,7 +73,7 @@ func (d *Driver) DoExec(ctx context.Context, link gdb.Link, sql string, args ...
 		return d.Core.DoExec(ctx, link, sql, args...)
 	}
 
-	// Only the insert operation with primary key can execute the following code
+	// Execute with RETURNING clause
 
 	// Sql filtering.
 	sql, args = d.FormatSqlBeforeExecuting(sql, args)
@@ -95,6 +97,21 @@ func (d *Driver) DoExec(ctx context.Context, link gdb.Link, sql string, args ...
 		return nil, err
 	}
 	affected := len(out.Records)
+
+	// If user explicitly specified RETURNING fields, return the result with records.
+	// The records are available via GetRecords() method for gdb.ReturningResult interface.
+	if isUserReturning {
+		return Result{
+			affected:     int64(affected),
+			lastInsertId: 0,
+			lastInsertIdError: gerror.NewCodef(
+				gcode.CodeNotSupported,
+				"LastInsertId is not supported when using custom RETURNING clause"),
+			records: out.Records,
+		}, nil
+	}
+
+	// Handle automatic primary key RETURNING for INSERT
 	if affected > 0 {
 		if !strings.Contains(pkField.Type, "int") {
 			return Result{

@@ -4,7 +4,7 @@
 // If a copy of the MIT was not distributed with this file,
 // You can obtain one at https://github.com/gogf/gf.
 
-package pgsql
+package dm
 
 import (
 	"database/sql"
@@ -12,31 +12,36 @@ import (
 	"github.com/gogf/gf/v2/database/gdb"
 )
 
-// Result is the result type for PostgreSQL database operations.
+// Result is the result type for DaMeng database operations.
 // It implements both sql.Result and gdb.ReturningResult interfaces.
 type Result struct {
 	sql.Result
-	affected          int64
-	lastInsertId      int64
-	lastInsertIdError error
-	records           gdb.Result // Records from RETURNING clause
+	records gdb.Result // Records from RETURNING clause
 }
 
 // RowsAffected returns the number of rows affected by the operation.
-func (pgr Result) RowsAffected() (int64, error) {
-	return pgr.affected, nil
+// When RETURNING clause is used, it returns the count of returned records.
+func (r Result) RowsAffected() (int64, error) {
+	if r.records != nil {
+		return int64(len(r.records)), nil
+	}
+	if r.Result != nil {
+		return r.Result.RowsAffected()
+	}
+	return 0, nil
 }
 
 // LastInsertId returns the last inserted ID.
-// Note: PostgreSQL doesn't support LastInsertId in the traditional sense.
-// Use RETURNING clause with Returning() method to get inserted IDs.
-func (pgr Result) LastInsertId() (int64, error) {
-	return pgr.lastInsertId, pgr.lastInsertIdError
+func (r Result) LastInsertId() (int64, error) {
+	if r.Result != nil {
+		return r.Result.LastInsertId()
+	}
+	return 0, nil
 }
 
 // GetRecords returns the records from RETURNING clause.
 // Returns nil if no RETURNING clause was specified or no data was returned.
 // This method implements the gdb.ReturningResult interface.
-func (pgr Result) GetRecords() gdb.Result {
-	return pgr.records
+func (r Result) GetRecords() gdb.Result {
+	return r.records
 }

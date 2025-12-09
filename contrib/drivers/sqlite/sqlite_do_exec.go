@@ -21,13 +21,54 @@ import (
 // It supports RETURNING clause for SQLite 3.35.0+ (2021-03-12).
 func (d *Driver) DoExec(ctx context.Context, link gdb.Link, sql string, args ...any) (result sql.Result, err error) {
 	// Check if user specified RETURNING fields (from context or DoInsertOption)
-	if returningFields := gdb.GetReturningFromCtx(ctx); len(returningFields) > 0 {
-		// Add RETURNING clause to SQL
-		sql += " " + buildReturningClause(returningFields)
+	returningFields := gdb.GetReturningFromCtx(ctx)
+	if len(returningFields) == 0 {
+		// No RETURNING clause, use default DoExec
+		return d.Core.DoExec(ctx, link, sql, args...)
 	}
 
-	// Use default DoExec
-	return d.Core.DoExec(ctx, link, sql, args...)
+	// Add RETURNING clause to SQL
+	sql += " " + buildReturningClause(returningFields)
+
+	// Transaction checks.
+	if link == nil {
+		if tx := gdb.TXFromCtx(ctx, d.GetGroup()); tx != nil {
+			link = tx
+		} else if link, err = d.MasterLink(); err != nil {
+			return nil, err
+		}
+	} else if !link.IsTransaction() {
+		if tx := gdb.TXFromCtx(ctx, d.GetGroup()); tx != nil {
+			link = tx
+		}
+	}
+
+	// Sql filtering.
+	sql, args = d.FormatSqlBeforeExecuting(sql, args)
+	sql, args, err = d.DoFilter(ctx, link, sql, args)
+	if err != nil {
+		return nil, err
+	}
+
+	// Execute as query to capture RETURNING results.
+	var out gdb.DoCommitOutput
+	out, err = d.DoCommit(ctx, gdb.DoCommitInput{
+		Link:          link,
+		Sql:           sql,
+		Args:          args,
+		Stmt:          nil,
+		Type:          gdb.SqlTypeQueryContext,
+		IsTransaction: link.IsTransaction(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Return result with RETURNING records.
+	return Result{
+		Result:  out.Result,
+		records: out.Records,
+	}, nil
 }
 
 // buildReturningClause builds the RETURNING clause for SQLite.
