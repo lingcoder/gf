@@ -7,10 +7,12 @@
 package pgsql_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/os/gctx"
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/test/gtest"
 )
@@ -500,5 +502,112 @@ func Test_Model_DeleteAndScan(t *testing.T) {
 		record, err := db.Model(table).Where("id", 1).One()
 		t.AssertNil(err)
 		t.Assert(record.IsEmpty(), true)
+	})
+}
+
+// Test_Model_Transaction_Returning tests RETURNING clause within a transaction.
+func Test_Model_Transaction_Returning(t *testing.T) {
+	table := createTable()
+	defer dropTable(table)
+
+	gtest.C(t, func(t *gtest.T) {
+		err := db.Transaction(gctx.New(), func(ctx context.Context, tx gdb.TX) error {
+			// Insert with RETURNING in transaction
+			result, err := tx.Model(table).Ctx(ctx).Data(g.Map{
+				"passport":    "tx_user",
+				"password":    "tx_pass",
+				"nickname":    "TX User",
+				"create_time": gtime.Now().String(),
+			}).Returning("id", "passport").Insert()
+			if err != nil {
+				return err
+			}
+
+			// Verify RETURNING data is available
+			rr, ok := result.(gdb.ReturningResult)
+			if !ok {
+				t.Error("Expected ReturningResult interface")
+				return nil
+			}
+			records := rr.GetRecords()
+			t.Assert(len(records), 1)
+			t.AssertGT(records[0]["id"].Int(), 0)
+			t.Assert(records[0]["passport"].String(), "tx_user")
+
+			// Update with RETURNING in transaction
+			result, err = tx.Model(table).Ctx(ctx).Data(g.Map{
+				"nickname": "TX User Updated",
+			}).Where("passport", "tx_user").Returning("id", "nickname").Update()
+			if err != nil {
+				return err
+			}
+
+			rr, ok = result.(gdb.ReturningResult)
+			if !ok {
+				t.Error("Expected ReturningResult interface for update")
+				return nil
+			}
+			records = rr.GetRecords()
+			t.Assert(len(records), 1)
+			t.Assert(records[0]["nickname"].String(), "TX User Updated")
+
+			return nil
+		})
+		t.AssertNil(err)
+	})
+}
+
+// Test_Model_Update_Returning_Multiple tests UPDATE with RETURNING for multiple rows.
+func Test_Model_Update_Returning_Multiple(t *testing.T) {
+	table := createInitTable()
+	defer dropTable(table)
+
+	gtest.C(t, func(t *gtest.T) {
+		// Update multiple rows with RETURNING
+		result, err := db.Model(table).Data(g.Map{
+			"nickname": "Updated Batch",
+		}).Where("id <= ?", 3).Returning("id", "passport", "nickname").Update()
+
+		t.AssertNil(err)
+		n, _ := result.RowsAffected()
+		t.Assert(n, 3)
+
+		// Get RETURNING records
+		rr, ok := result.(gdb.ReturningResult)
+		t.Assert(ok, true)
+
+		records := rr.GetRecords()
+		t.Assert(len(records), 3)
+		// Verify all records have the updated nickname
+		for _, record := range records {
+			t.Assert(record["nickname"].String(), "Updated Batch")
+		}
+	})
+}
+
+// Test_Model_Delete_Returning_Multiple tests DELETE with RETURNING for multiple rows.
+func Test_Model_Delete_Returning_Multiple(t *testing.T) {
+	table := createInitTable()
+	defer dropTable(table)
+
+	gtest.C(t, func(t *gtest.T) {
+		// Get original data first
+		original, err := db.Model(table).Where("id <= ?", 2).All()
+		t.AssertNil(err)
+		t.Assert(len(original), 2)
+
+		// Delete multiple rows with RETURNING
+		result, err := db.Model(table).Where("id <= ?", 2).Returning("id", "passport", "nickname").Delete()
+		t.AssertNil(err)
+
+		n, _ := result.RowsAffected()
+		t.Assert(n, 2)
+
+		// Get RETURNING records - should contain the deleted data
+		rr, ok := result.(gdb.ReturningResult)
+		t.Assert(ok, true)
+
+		records := rr.GetRecords()
+		t.Assert(len(records), 2)
 	})
 }

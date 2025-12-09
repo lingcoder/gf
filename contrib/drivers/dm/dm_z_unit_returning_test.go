@@ -7,10 +7,12 @@
 package dm_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/os/gctx"
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/test/gtest"
 )
@@ -339,5 +341,253 @@ func Test_Model_DeleteAndScan(t *testing.T) {
 		record, err := db.Schema(TestDBName).Model(table).Where("id", 1).One()
 		t.AssertNil(err)
 		t.Assert(record.IsEmpty(), true)
+	})
+}
+
+// Test_Model_Save_Returning_GetRecords tests Save (UPSERT) with RETURNING and GetRecords.
+// This verifies that RETURNING data is correctly captured for MERGE operations.
+func Test_Model_Save_Returning_GetRecords(t *testing.T) {
+	table := createTable()
+	defer dropTable(table)
+
+	gtest.C(t, func(t *gtest.T) {
+		// First save (INSERT) with RETURNING
+		result, err := db.Schema(TestDBName).Model(table).Data(g.Map{
+			"id":           100,
+			"account_name": "save_returning_user",
+			"pwd_reset":    0,
+			"created_time": gtime.Now(),
+		}).OnConflict("id").Returning("id", "account_name").Save()
+
+		t.AssertNil(err)
+		n, _ := result.RowsAffected()
+		t.Assert(n, 1)
+
+		// Get RETURNING records
+		rr, ok := result.(gdb.ReturningResult)
+		t.Assert(ok, true)
+		t.AssertNE(rr, nil)
+
+		records := rr.GetRecords()
+		t.Assert(len(records), 1)
+		t.Assert(records[0]["ID"].Int(), 100)
+		t.Assert(records[0]["ACCOUNT_NAME"].String(), "save_returning_user")
+
+		// Second save (UPDATE on conflict) with RETURNING
+		result, err = db.Schema(TestDBName).Model(table).Data(g.Map{
+			"id":           100,
+			"account_name": "updated_save_returning",
+			"pwd_reset":    1,
+			"created_time": gtime.Now(),
+		}).OnConflict("id").Returning("id", "account_name", "pwd_reset").Save()
+
+		t.AssertNil(err)
+		n, _ = result.RowsAffected()
+		t.Assert(n, 1)
+
+		// Get RETURNING records for update
+		rr, ok = result.(gdb.ReturningResult)
+		t.Assert(ok, true)
+		records = rr.GetRecords()
+		t.Assert(len(records), 1)
+		t.Assert(records[0]["ACCOUNT_NAME"].String(), "updated_save_returning")
+		t.Assert(records[0]["PWD_RESET"].Int(), 1)
+	})
+}
+
+// Test_Model_SaveAndScan tests SaveAndScan method for UPSERT operations.
+func Test_Model_SaveAndScan(t *testing.T) {
+	table := createTable()
+	defer dropTable(table)
+
+	gtest.C(t, func(t *gtest.T) {
+		type Account struct {
+			Id          int         `json:"id"`
+			AccountName string      `json:"account_name"`
+			PwdReset    int         `json:"pwd_reset"`
+			CreatedTime *gtime.Time `json:"created_time"`
+		}
+
+		// First save (INSERT)
+		var account Account
+		err := db.Schema(TestDBName).Model(table).Data(g.Map{
+			"id":           100,
+			"account_name": "save_scan_user",
+			"pwd_reset":    0,
+			"created_time": gtime.Now(),
+		}).OnConflict("id").SaveAndScan(&account)
+
+		t.AssertNil(err)
+		t.Assert(account.Id, 100)
+		t.Assert(account.AccountName, "save_scan_user")
+
+		// Second save (UPDATE on conflict)
+		err = db.Schema(TestDBName).Model(table).Data(g.Map{
+			"id":           100,
+			"account_name": "updated_save_scan",
+			"pwd_reset":    1,
+			"created_time": gtime.Now(),
+		}).OnConflict("id").SaveAndScan(&account)
+
+		t.AssertNil(err)
+		t.Assert(account.Id, 100)
+		t.Assert(account.AccountName, "updated_save_scan")
+		t.Assert(account.PwdReset, 1)
+	})
+}
+
+// Test_Model_Transaction_Returning tests RETURNING clause within a transaction.
+func Test_Model_Transaction_Returning(t *testing.T) {
+	table := createTable()
+	defer dropTable(table)
+
+	gtest.C(t, func(t *gtest.T) {
+		err := db.Transaction(gctx.New(), func(ctx context.Context, tx gdb.TX) error {
+			// Insert with RETURNING in transaction
+			result, err := tx.Model(table).Ctx(ctx).Schema(TestDBName).Data(g.Map{
+				"id":           1,
+				"account_name": "tx_user",
+				"pwd_reset":    0,
+				"created_time": gtime.Now(),
+			}).Returning("id", "account_name").Insert()
+			if err != nil {
+				return err
+			}
+
+			// Verify RETURNING data is available
+			rr, ok := result.(gdb.ReturningResult)
+			if !ok {
+				t.Error("Expected ReturningResult interface")
+				return nil
+			}
+			records := rr.GetRecords()
+			t.Assert(len(records), 1)
+			t.Assert(records[0]["ID"].Int(), 1)
+			t.Assert(records[0]["ACCOUNT_NAME"].String(), "tx_user")
+
+			// Update with RETURNING in transaction
+			result, err = tx.Model(table).Ctx(ctx).Schema(TestDBName).Data(g.Map{
+				"account_name": "tx_user_updated",
+			}).Where("id", 1).Returning("id", "account_name").Update()
+			if err != nil {
+				return err
+			}
+
+			rr, ok = result.(gdb.ReturningResult)
+			if !ok {
+				t.Error("Expected ReturningResult interface for update")
+				return nil
+			}
+			records = rr.GetRecords()
+			t.Assert(len(records), 1)
+			t.Assert(records[0]["ACCOUNT_NAME"].String(), "tx_user_updated")
+
+			return nil
+		})
+		t.AssertNil(err)
+	})
+}
+
+// Test_Model_Batch_Insert_Returning_GetRecords tests batch insert with RETURNING and GetRecords.
+func Test_Model_Batch_Insert_Returning_GetRecords(t *testing.T) {
+	table := createTable()
+	defer dropTable(table)
+
+	gtest.C(t, func(t *gtest.T) {
+		// Batch insert with RETURNING
+		result, err := db.Schema(TestDBName).Model(table).Data(g.Slice{
+			g.Map{
+				"id":           1,
+				"account_name": "batch_ret_1",
+				"pwd_reset":    0,
+				"created_time": gtime.Now(),
+			},
+			g.Map{
+				"id":           2,
+				"account_name": "batch_ret_2",
+				"pwd_reset":    0,
+				"created_time": gtime.Now(),
+			},
+			g.Map{
+				"id":           3,
+				"account_name": "batch_ret_3",
+				"pwd_reset":    0,
+				"created_time": gtime.Now(),
+			},
+		}).Returning("id", "account_name").Insert()
+
+		t.AssertNil(err)
+		n, _ := result.RowsAffected()
+		t.Assert(n, 3)
+
+		// Get RETURNING records
+		rr, ok := result.(gdb.ReturningResult)
+		t.Assert(ok, true)
+
+		records := rr.GetRecords()
+		t.Assert(len(records), 3)
+		t.Assert(records[0]["ACCOUNT_NAME"].String(), "batch_ret_1")
+		t.Assert(records[1]["ACCOUNT_NAME"].String(), "batch_ret_2")
+		t.Assert(records[2]["ACCOUNT_NAME"].String(), "batch_ret_3")
+	})
+}
+
+// Test_Model_Update_Returning_GetRecords tests UPDATE with RETURNING and GetRecords.
+func Test_Model_Update_Returning_GetRecords(t *testing.T) {
+	table := createInitTable()
+	defer dropTable(table)
+
+	gtest.C(t, func(t *gtest.T) {
+		// Update multiple rows with RETURNING
+		result, err := db.Schema(TestDBName).Model(table).Data(g.Map{
+			"pwd_reset": 1,
+		}).Where("id <= ?", 3).Returning("id", "account_name", "pwd_reset").Update()
+
+		t.AssertNil(err)
+		n, _ := result.RowsAffected()
+		t.Assert(n, 3)
+
+		// Get RETURNING records
+		rr, ok := result.(gdb.ReturningResult)
+		t.Assert(ok, true)
+
+		records := rr.GetRecords()
+		t.Assert(len(records), 3)
+		// Verify all records have pwd_reset = 1
+		for _, record := range records {
+			t.Assert(record["PWD_RESET"].Int(), 1)
+		}
+	})
+}
+
+// Test_Model_Delete_Returning_GetRecords tests DELETE with RETURNING and GetRecords.
+func Test_Model_Delete_Returning_GetRecords(t *testing.T) {
+	table := createInitTable()
+	defer dropTable(table)
+
+	gtest.C(t, func(t *gtest.T) {
+		// Get original data first
+		original, err := db.Schema(TestDBName).Model(table).Where("id <= ?", 2).All()
+		t.AssertNil(err)
+		t.Assert(len(original), 2)
+
+		// Delete multiple rows with RETURNING
+		result, err := db.Schema(TestDBName).Model(table).Where("id <= ?", 2).Returning("id", "account_name").Delete()
+		t.AssertNil(err)
+
+		n, _ := result.RowsAffected()
+		t.Assert(n, 2)
+
+		// Get RETURNING records - should contain the deleted data
+		rr, ok := result.(gdb.ReturningResult)
+		t.Assert(ok, true)
+
+		records := rr.GetRecords()
+		t.Assert(len(records), 2)
+		// Verify deleted records match original
+		for i, record := range records {
+			t.Assert(record["ID"].Int(), original[i]["ID"].Int())
+			t.Assert(record["ACCOUNT_NAME"].String(), original[i]["ACCOUNT_NAME"].String())
+		}
 	})
 }

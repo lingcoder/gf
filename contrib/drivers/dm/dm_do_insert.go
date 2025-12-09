@@ -143,21 +143,23 @@ func (d *Driver) doMergeInsert(
 		index++
 	}
 
-	var (
-		batchResult = new(gdb.SqlResult)
-		sqlStr      = parseSqlForMerge(table, queryHolders, insertKeys, insertValues, updateValues, conflictKeys)
-	)
+	sqlStr := parseSqlForMerge(table, queryHolders, insertKeys, insertValues, updateValues, conflictKeys)
 	r, err := d.DoExec(ctx, link, sqlStr, queryValues...)
 	if err != nil {
 		return r, err
 	}
+	// If RETURNING clause is specified, return the result directly to preserve ReturningResult interface.
+	if len(gdb.GetReturningFromCtx(ctx)) > 0 {
+		return r, nil
+	}
 	if n, err := r.RowsAffected(); err != nil {
 		return r, err
 	} else {
+		batchResult := new(gdb.SqlResult)
 		batchResult.Result = r
 		batchResult.Affected += n
+		return batchResult, nil
 	}
-	return batchResult, nil
 }
 
 // getPrimaryKeys retrieves the primary key field names of the table as a slice of strings.
