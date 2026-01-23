@@ -15,11 +15,13 @@ import (
 )
 
 var (
-	ctx      = context.Background()
-	testDB   gdb.DB
-	testPgDB gdb.DB
-	link     = "mysql:root:12345678@tcp(127.0.0.1:3306)/test?loc=Local&parseTime=true"
-	linkPg   = "pgsql:postgres:12345678@tcp(127.0.0.1:5432)/test"
+	ctx         = context.Background()
+	testDB      gdb.DB
+	testPgDB    gdb.DB
+	testGaussDB gdb.DB
+	link        = "mysql:root:12345678@tcp(127.0.0.1:3306)/test?loc=Local&parseTime=true"
+	linkPg      = "pgsql:postgres:12345678@tcp(127.0.0.1:5432)/test"
+	linkGaussDB = "gaussdb:gaussdb:UTpass@1234@tcp(127.0.0.1:9950)/postgres"
 )
 
 func init() {
@@ -33,6 +35,10 @@ func init() {
 	// PostgreSQL connection (optional, may not be available in all environments)
 	testPgDB, _ = gdb.New(gdb.ConfigNode{
 		Link: linkPg,
+	})
+	// GaussDB connection (optional, may not be available in all environments)
+	testGaussDB, _ = gdb.New(gdb.ConfigNode{
+		Link: linkGaussDB,
 	})
 }
 

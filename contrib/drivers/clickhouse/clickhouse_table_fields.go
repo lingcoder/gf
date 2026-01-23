@@ -31,9 +31,11 @@ func (d *Driver) TableFields(ctx context.Context, table string, schema ...string
 		return nil, err
 	}
 	var (
+		// Filter by database to ensure consistency with Tables() method.
+		// Use d.GetConfig().Name as database name, same as Tables().
 		getColumnsSql = fmt.Sprintf(
-			"select %s from `system`.columns c where `table` = '%s'",
-			tableFieldsColumns, table,
+			"select %s from `system`.columns c where `database` = '%s' and `table` = '%s'",
+			tableFieldsColumns, d.GetConfig().Name, table,
 		)
 	)
 	result, err = d.DoSelect(ctx, link, getColumnsSql)

@@ -426,3 +426,52 @@ func Test_isSubQuery(t *testing.T) {
 		t.Assert(isSubQuery("select 1"), true)
 	})
 }
+
+// https://github.com/gogf/gf/issues/4495
+// Test genTableNamesCacheKey includes schema in cache key for proper isolation.
+func Test_genTableNamesCacheKey(t *testing.T) {
+	gtest.C(t, func(t *gtest.T) {
+		// Test basic cache key generation
+		key1 := genTableNamesCacheKey("default", "")
+		t.Assert(key1, "Tables:default@")
+
+		// Test cache key with schema
+		key2 := genTableNamesCacheKey("default", "public")
+		t.Assert(key2, "Tables:default@public")
+
+		// Test cache key with different schema
+		key3 := genTableNamesCacheKey("default", "myschema")
+		t.Assert(key3, "Tables:default@myschema")
+
+		// Test cache key with different group
+		key4 := genTableNamesCacheKey("secondary", "public")
+		t.Assert(key4, "Tables:secondary@public")
+
+		// Verify different schemas produce different cache keys
+		t.AssertNE(key2, key3)
+
+		// Verify different groups produce different cache keys
+		t.AssertNE(key2, key4)
+	})
+}
+
+// https://github.com/gogf/gf/issues/4495
+// Test cache key isolation - different schemas should have different cache keys.
+func Test_genTableNamesCacheKey_Isolation(t *testing.T) {
+	gtest.C(t, func(t *gtest.T) {
+		// Same group, different schemas should have different keys
+		keySchema1 := genTableNamesCacheKey("default", "schema1")
+		keySchema2 := genTableNamesCacheKey("default", "schema2")
+		t.AssertNE(keySchema1, keySchema2)
+
+		// Same schema, different groups should have different keys
+		keyGroup1 := genTableNamesCacheKey("group1", "public")
+		keyGroup2 := genTableNamesCacheKey("group2", "public")
+		t.AssertNE(keyGroup1, keyGroup2)
+
+		// Empty schema vs non-empty schema should have different keys
+		keyNoSchema := genTableNamesCacheKey("default", "")
+		keyWithSchema := genTableNamesCacheKey("default", "public")
+		t.AssertNE(keyNoSchema, keyWithSchema)
+	})
+}

@@ -26,10 +26,11 @@ SELECT
     numeric_scale                                                                        AS scale
 FROM pg_attribute a
     LEFT JOIN pg_class c                 ON a.attrelid = c.oid
+    LEFT JOIN pg_namespace n             ON c.relnamespace = n.oid
     LEFT JOIN pg_constraint d            ON d.conrelid = c.oid AND a.attnum = d.conkey[1]
     LEFT JOIN pg_description b           ON a.attrelid = b.objoid AND a.attnum = b.objsubid
     LEFT JOIN pg_type t                  ON a.atttypid = t.oid
-    LEFT JOIN information_schema.columns ic ON ic.column_name = a.attname AND ic.table_name = c.relname
+    LEFT JOIN information_schema.columns ic ON ic.column_name = a.attname AND ic.table_name = c.relname AND ic.table_schema = n.nspname
 WHERE c.oid = '%s'::regclass
     AND a.attisdropped IS FALSE
     AND a.attnum > 0

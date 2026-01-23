@@ -332,3 +332,87 @@ func Test_DB_TableFields(t *testing.T) {
 		gtest.AssertNQ(field, nil)
 	})
 }
+
+// https://github.com/gogf/gf/issues/4495
+// Test TableFields() correctly filters by database name.
+func Test_Issue4495_TableFields_DatabaseFilter(t *testing.T) {
+	table := createInitTable("issue4495_test")
+	defer dropTable(table)
+
+	gtest.C(t, func(t *gtest.T) {
+		// TableFields should return fields only for tables in the configured database
+		fields, err := db.TableFields(ctx, "issue4495_test")
+		gtest.AssertNil(err)
+		gtest.AssertEQ(len(fields), 5)
+
+		// Verify field names
+		_, hasId := fields["id"]
+		_, hasPassport := fields["passport"]
+		_, hasPassword := fields["password"]
+		_, hasNickname := fields["nickname"]
+		_, hasCreateTime := fields["create_time"]
+		gtest.AssertEQ(hasId, true)
+		gtest.AssertEQ(hasPassport, true)
+		gtest.AssertEQ(hasPassword, true)
+		gtest.AssertEQ(hasNickname, true)
+		gtest.AssertEQ(hasCreateTime, true)
+	})
+}
+
+// https://github.com/gogf/gf/issues/4495
+// Test Tables() returns tables from the configured database.
+func Test_Issue4495_Tables_DatabaseFilter(t *testing.T) {
+	table1 := createTable("issue4495_t1")
+	table2 := createTable("issue4495_t2")
+	defer dropTable(table1)
+	defer dropTable(table2)
+
+	gtest.C(t, func(t *gtest.T) {
+		tables, err := db.Tables(ctx)
+		gtest.AssertNil(err)
+
+		// Should contain our created tables
+		found1 := false
+		found2 := false
+		for _, tbl := range tables {
+			if tbl == "issue4495_t1" {
+				found1 = true
+			}
+			if tbl == "issue4495_t2" {
+				found2 = true
+			}
+		}
+		gtest.AssertEQ(found1, true)
+		gtest.AssertEQ(found2, true)
+	})
+}
+
+// https://github.com/gogf/gf/issues/4495
+// Test cache isolation - ensure cache keys include database name.
+func Test_Issue4495_CacheIsolation(t *testing.T) {
+	table := createInitTable("issue4495_cache")
+	defer dropTable(table)
+
+	gtest.C(t, func(t *gtest.T) {
+		// First call should cache the result
+		tables1, err := db.Tables(ctx)
+		gtest.AssertNil(err)
+
+		// Second call should use cache (same database)
+		tables2, err := db.Tables(ctx)
+		gtest.AssertNil(err)
+
+		// Results should be consistent
+		gtest.AssertEQ(len(tables1), len(tables2))
+
+		// Both should contain our table
+		found := false
+		for _, tbl := range tables1 {
+			if tbl == "issue4495_cache" {
+				found = true
+				break
+			}
+		}
+		gtest.AssertEQ(found, true)
+	})
+}

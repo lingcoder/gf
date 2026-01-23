@@ -1007,8 +1007,11 @@ func genSelectCacheKey(table, group, schema, name, sql string, args ...any) stri
 }
 
 // genTableNamesCacheKey generates cache key for table names.
-func genTableNamesCacheKey(group string) string {
-	return fmt.Sprintf(`Tables:%s`, group)
+// The schema parameter is included to ensure cache isolation when:
+// - Different schemas are explicitly specified
+// - PostgreSQL search_path changes affect which tables are visible
+func genTableNamesCacheKey(group, schema string) string {
+	return fmt.Sprintf(`Tables:%s@%s`, group, schema)
 }
 
 // genSoftTimeFieldNameTypeCacheKey generates cache key for soft time field name and type.

@@ -11,7 +11,6 @@ import (
 	"fmt"
 
 	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/util/gutil"
 )
 
 var (
@@ -27,10 +26,11 @@ SELECT
     numeric_scale                                                                        AS scale
 FROM pg_attribute a
     LEFT JOIN pg_class c                 ON a.attrelid = c.oid
+    LEFT JOIN pg_namespace n             ON c.relnamespace = n.oid
     LEFT JOIN pg_constraint d            ON d.conrelid = c.oid AND a.attnum = d.conkey[1]
     LEFT JOIN pg_description b           ON a.attrelid = b.objoid AND a.attnum = b.objsubid
     LEFT JOIN pg_type t                  ON a.atttypid = t.oid
-    LEFT JOIN information_schema.columns ic ON ic.column_name = a.attname AND ic.table_name = c.relname
+    LEFT JOIN information_schema.columns ic ON ic.column_name = a.attname AND ic.table_name = c.relname AND ic.table_schema = n.nspname
 WHERE c.oid = '%s'::regclass
     AND a.attisdropped IS FALSE
     AND a.attnum > 0
@@ -48,13 +48,14 @@ func init() {
 // TableFields retrieves and returns the fields' information of specified table of current schema.
 func (d *Driver) TableFields(ctx context.Context, table string, schema ...string) (fields map[string]*gdb.TableField, err error) {
 	var (
-		result     gdb.Result
-		link       gdb.Link
-		usedSchema = gutil.GetOrDefaultStr(d.GetSchema(), schema...)
-		// TODO duplicated `id` result?
+		result gdb.Result
+		link   gdb.Link
+		// In PostgreSQL, schema is a namespace within the database.
+		// The table parameter can be schema-qualified (e.g., "myschema.mytable").
+		// DO NOT pass schema to SlaveLink - it would attempt to connect to a different database.
 		structureSql = fmt.Sprintf(tableFieldsSqlTmp, table)
 	)
-	if link, err = d.SlaveLink(usedSchema); err != nil {
+	if link, err = d.SlaveLink(); err != nil {
 		return nil, err
 	}
 	result, err = d.DoSelect(ctx, link, structureSql)

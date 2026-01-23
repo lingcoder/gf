@@ -43,13 +43,13 @@ func (d *Driver) TableFields(
 	if link, err = d.SlaveLink(usedSchema); err != nil {
 		return nil, err
 	}
-	// The link has been distinguished and no longer needs to judge the owner
+	// Use usedSchema for OWNER filter to be consistent with Tables()
 	result, err = d.DoSelect(
 		ctx, link,
 		fmt.Sprintf(
 			tableFieldsSqlTmp,
 			escapeSingleQuote(strings.ToUpper(table)),
-			escapeSingleQuote(strings.ToUpper(d.GetSchema())),
+			escapeSingleQuote(strings.ToUpper(usedSchema)),
 		),
 	)
 	if err != nil {
@@ -66,7 +66,7 @@ func (d *Driver) TableFields(
 	if pkResult.IsEmpty() {
 		pkResult, err = d.DoSelect(
 			ctx, link,
-			fmt.Sprintf(tableFieldsPkSqlDBATmp, escapeSingleQuote(strings.ToUpper(table)), escapeSingleQuote(strings.ToUpper(d.GetSchema()))),
+			fmt.Sprintf(tableFieldsPkSqlDBATmp, escapeSingleQuote(strings.ToUpper(table)), escapeSingleQuote(strings.ToUpper(usedSchema))),
 		)
 		if err != nil {
 			return nil, err

@@ -855,3 +855,179 @@ func Test_Gen_Dao_Issue4629_TablesPattern_PgSql(t *testing.T) {
 		t.Assert(gfile.Exists(gfile.Join(path, "dao", "user_log.go")), false)
 	})
 }
+
+// https://github.com/gogf/gf/issues/4495
+// Test that gen dao works correctly with PostgreSQL non-public schemas
+// using search_path in connection string.
+func Test_Gen_Dao_Issue4495_PgSchema(t *testing.T) {
+	if testPgDB == nil {
+		t.Skip("PostgreSQL database not available, skipping test")
+		return
+	}
+	gtest.C(t, func(t *gtest.T) {
+		var (
+			err      error
+			db       = testPgDB
+			schema   = "test_gendao_schema"
+			table1   = "schema_user"
+			table2   = "schema_order"
+			linkPgSP = fmt.Sprintf("pgsql:postgres:12345678@tcp(127.0.0.1:5432)/test?search_path=%s,public", schema)
+		)
+
+		// Create schema
+		if _, err = db.Exec(ctx, fmt.Sprintf(`CREATE SCHEMA IF NOT EXISTS %s`, schema)); err != nil {
+			t.Fatal(err)
+		}
+		defer db.Exec(ctx, fmt.Sprintf(`DROP SCHEMA %s CASCADE`, schema))
+
+		// Create tables in the schema (not in public)
+		if _, err = db.Exec(ctx, fmt.Sprintf(`
+			CREATE TABLE %s.%s (
+				id bigserial PRIMARY KEY,
+				name varchar(100)
+			)`, schema, table1)); err != nil {
+			t.Fatal(err)
+		}
+
+		if _, err = db.Exec(ctx, fmt.Sprintf(`
+			CREATE TABLE %s.%s (
+				id bigserial PRIMARY KEY,
+				user_id bigint,
+				amount decimal(10,2)
+			)`, schema, table2)); err != nil {
+			t.Fatal(err)
+		}
+
+		var (
+			path  = gfile.Temp(guid.S())
+			group = "test"
+			in    = gendao.CGenDaoInput{
+				Path:   path,
+				Link:   linkPgSP, // Use connection string with search_path
+				Group:  group,
+				Tables: fmt.Sprintf("%s,%s", table1, table2), // Specify exact tables
+			}
+		)
+		err = gutil.FillStructWithDefault(&in)
+		t.AssertNil(err)
+
+		err = gfile.Mkdir(path)
+		t.AssertNil(err)
+
+		pwd := gfile.Pwd()
+		err = gfile.Chdir(path)
+		t.AssertNil(err)
+		defer gfile.Chdir(pwd)
+		defer gfile.RemoveAll(path)
+
+		_, err = gendao.CGenDao{}.Dao(ctx, in)
+		t.AssertNil(err)
+
+		// Should generate 2 dao files from the schema
+		generatedFiles, err := gfile.ScanDir(gfile.Join(path, "dao"), "*.go", false)
+		t.AssertNil(err)
+		t.Assert(len(generatedFiles), 2)
+
+		// Verify the correct files are generated
+		t.Assert(gfile.Exists(gfile.Join(path, "dao", "schema_user.go")), true)
+		t.Assert(gfile.Exists(gfile.Join(path, "dao", "schema_order.go")), true)
+
+		// Verify entity files contain correct field types
+		entityUserContent := gfile.GetContents(gfile.Join(path, "model", "entity", "schema_user.go"))
+		t.Assert(gstr.Contains(entityUserContent, "Id"), true)
+		t.Assert(gstr.Contains(entityUserContent, "Name"), true)
+
+		entityOrderContent := gfile.GetContents(gfile.Join(path, "model", "entity", "schema_order.go"))
+		t.Assert(gstr.Contains(entityOrderContent, "Id"), true)
+		t.Assert(gstr.Contains(entityOrderContent, "UserId"), true)
+		t.Assert(gstr.Contains(entityOrderContent, "Amount"), true)
+	})
+}
+
+// https://github.com/gogf/gf/issues/4495
+// Test that gen dao works correctly with GaussDB non-public schemas
+// using search_path in connection string.
+func Test_Gen_Dao_Issue4495_GaussDBSchema(t *testing.T) {
+	if testGaussDB == nil {
+		t.Skip("GaussDB database not available, skipping test")
+		return
+	}
+	gtest.C(t, func(t *gtest.T) {
+		var (
+			err           error
+			db            = testGaussDB
+			schema        = "test_gendao_schema"
+			table1        = "schema_user"
+			table2        = "schema_order"
+			linkGaussDBSP = fmt.Sprintf("gaussdb:gaussdb:UTpass@1234@tcp(127.0.0.1:9950)/postgres?search_path=%s,public", schema)
+		)
+
+		// Create schema
+		if _, err = db.Exec(ctx, fmt.Sprintf(`CREATE SCHEMA IF NOT EXISTS %s`, schema)); err != nil {
+			t.Fatal(err)
+		}
+		defer db.Exec(ctx, fmt.Sprintf(`DROP SCHEMA %s CASCADE`, schema))
+
+		// Create tables in the schema (not in public)
+		if _, err = db.Exec(ctx, fmt.Sprintf(`
+			CREATE TABLE %s.%s (
+				id bigserial PRIMARY KEY,
+				name varchar(100)
+			)`, schema, table1)); err != nil {
+			t.Fatal(err)
+		}
+
+		if _, err = db.Exec(ctx, fmt.Sprintf(`
+			CREATE TABLE %s.%s (
+				id bigserial PRIMARY KEY,
+				user_id bigint,
+				amount decimal(10,2)
+			)`, schema, table2)); err != nil {
+			t.Fatal(err)
+		}
+
+		var (
+			path  = gfile.Temp(guid.S())
+			group = "test"
+			in    = gendao.CGenDaoInput{
+				Path:   path,
+				Link:   linkGaussDBSP, // Use connection string with search_path
+				Group:  group,
+				Tables: fmt.Sprintf("%s,%s", table1, table2), // Specify exact tables
+			}
+		)
+		err = gutil.FillStructWithDefault(&in)
+		t.AssertNil(err)
+
+		err = gfile.Mkdir(path)
+		t.AssertNil(err)
+
+		pwd := gfile.Pwd()
+		err = gfile.Chdir(path)
+		t.AssertNil(err)
+		defer gfile.Chdir(pwd)
+		defer gfile.RemoveAll(path)
+
+		_, err = gendao.CGenDao{}.Dao(ctx, in)
+		t.AssertNil(err)
+
+		// Should generate 2 dao files from the schema
+		generatedFiles, err := gfile.ScanDir(gfile.Join(path, "dao"), "*.go", false)
+		t.AssertNil(err)
+		t.Assert(len(generatedFiles), 2)
+
+		// Verify the correct files are generated
+		t.Assert(gfile.Exists(gfile.Join(path, "dao", "schema_user.go")), true)
+		t.Assert(gfile.Exists(gfile.Join(path, "dao", "schema_order.go")), true)
+
+		// Verify entity files contain correct field types
+		entityUserContent := gfile.GetContents(gfile.Join(path, "model", "entity", "schema_user.go"))
+		t.Assert(gstr.Contains(entityUserContent, "Id"), true)
+		t.Assert(gstr.Contains(entityUserContent, "Name"), true)
+
+		entityOrderContent := gfile.GetContents(gfile.Join(path, "model", "entity", "schema_order.go"))
+		t.Assert(gstr.Contains(entityOrderContent, "Id"), true)
+		t.Assert(gstr.Contains(entityOrderContent, "UserId"), true)
+		t.Assert(gstr.Contains(entityOrderContent, "Amount"), true)
+	})
+}

@@ -72,6 +72,136 @@ func Test_Issue2594(t *testing.T) {
 	})
 }
 
+// https://github.com/gogf/gf/issues/4495
+// Test Tables() returns correct tables using USER_TABLES (for current user)
+// and ALL_TABLES (when schema is specified).
+func Test_Issue4495_Tables(t *testing.T) {
+	table1 := createInitTable()
+	table2 := createInitTable()
+	defer dropTable(table1)
+	defer dropTable(table2)
+
+	// Test 1: Tables() returns tables for current user (using USER_TABLES)
+	gtest.C(t, func(t *gtest.T) {
+		tables, err := db.Tables(ctx)
+		t.AssertNil(err)
+
+		// Should contain our created tables (case-insensitive comparison for DM)
+		found1 := false
+		found2 := false
+		for _, tbl := range tables {
+			if gstr.Equal(tbl, table1) {
+				found1 = true
+			}
+			if gstr.Equal(tbl, table2) {
+				found2 = true
+			}
+		}
+		t.Assert(found1, true)
+		t.Assert(found2, true)
+	})
+
+	// Test 2: Tables() with explicit schema parameter (using ALL_TABLES with OWNER filter)
+	gtest.C(t, func(t *gtest.T) {
+		tables, err := db.Tables(ctx, TestDBName)
+		t.AssertNil(err)
+
+		// Should contain our created tables
+		found1 := false
+		found2 := false
+		for _, tbl := range tables {
+			if gstr.Equal(tbl, table1) {
+				found1 = true
+			}
+			if gstr.Equal(tbl, table2) {
+				found2 = true
+			}
+		}
+		t.Assert(found1, true)
+		t.Assert(found2, true)
+	})
+}
+
+// https://github.com/gogf/gf/issues/4495
+// Test TableFields() returns correct field info with proper schema handling.
+func Test_Issue4495_TableFields(t *testing.T) {
+	table := createInitTable()
+	defer dropTable(table)
+
+	// Test 1: TableFields() without schema uses current schema
+	gtest.C(t, func(t *gtest.T) {
+		fields, err := db.TableFields(ctx, table)
+		t.AssertNil(err)
+		t.Assert(len(fields) > 0, true)
+
+		// Verify key fields exist
+		_, hasID := fields["ID"]
+		_, hasAccountName := fields["ACCOUNT_NAME"]
+		t.Assert(hasID, true)
+		t.Assert(hasAccountName, true)
+	})
+
+	// Test 2: TableFields() with explicit schema parameter
+	gtest.C(t, func(t *gtest.T) {
+		fields, err := db.TableFields(ctx, table, TestDBName)
+		t.AssertNil(err)
+		t.Assert(len(fields) > 0, true)
+
+		// Verify key fields exist
+		_, hasID := fields["ID"]
+		_, hasAccountName := fields["ACCOUNT_NAME"]
+		t.Assert(hasID, true)
+		t.Assert(hasAccountName, true)
+	})
+
+	// Test 3: TableFields() with Schema() method
+	gtest.C(t, func(t *gtest.T) {
+		fields, err := db.Schema(TestDBName).TableFields(ctx, table)
+		t.AssertNil(err)
+		t.Assert(len(fields) > 0, true)
+
+		// Verify ID is primary key
+		idField, hasID := fields["ID"]
+		t.Assert(hasID, true)
+		t.Assert(idField.Key, "PRI")
+	})
+}
+
+// https://github.com/gogf/gf/issues/4495
+// Test cache isolation for different schemas.
+func Test_Issue4495_CacheIsolation(t *testing.T) {
+	table := createInitTable()
+	defer dropTable(table)
+
+	gtest.C(t, func(t *gtest.T) {
+		// Get tables using default schema
+		tables1, err := db.Tables(ctx)
+		t.AssertNil(err)
+
+		// Get tables using explicit schema
+		tables2, err := db.Schema(TestDBName).Tables(ctx)
+		t.AssertNil(err)
+
+		// Both should contain the created table
+		found1 := false
+		found2 := false
+		for _, tbl := range tables1 {
+			if gstr.Equal(tbl, table) {
+				found1 = true
+				break
+			}
+		}
+		for _, tbl := range tables2 {
+			if gstr.Equal(tbl, table) {
+				found2 = true
+				break
+			}
+		}
+		t.Assert(found1, true)
+		t.Assert(found2, true)
+	})
+}
+
 // Test_MultilineSQLStatement tests that multi-line SQL statements are properly supported.
 // This test verifies that newlines and tabs in SQL queries are preserved,
 // which is essential for readability and proper SQL statement handling.
