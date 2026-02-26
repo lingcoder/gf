@@ -119,9 +119,9 @@ func (c *Config) Get(ctx context.Context, pattern string, def ...any) (*gvar.Var
 //
 // Fetching Rules: Environment arguments are in uppercase format, eg: GF_PACKAGE_VARIABLE.
 //
-// Note: This method uses configuration file as the primary source, with environment variable
-// as fallback only when config value is not found. If you need standard priority where
-// environment variables can override config file values, use GetEffective instead.
+// Note: This method uses the configuration (adapter) as the primary source, with environment
+// variable as fallback only when the configuration value is not found. If you need standard
+// priority where environment variables can override configuration values, use GetEffective instead.
 func (c *Config) GetWithEnv(ctx context.Context, pattern string, def ...any) (*gvar.Var, error) {
 	value, err := c.Get(ctx, pattern)
 	if err != nil && gerror.Code(err) != gcode.CodeNotFound {
