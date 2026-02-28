@@ -12,7 +12,6 @@ import (
 	"time"
 
 	_ "github.com/gogf/gf/contrib/drivers/mariadb/v2"
-
 	"github.com/gogf/gf/v2/container/garray"
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
@@ -21,17 +20,19 @@ import (
 )
 
 const (
-	TableSize   = 10
-	TableName   = "user"
-	TestSchema1 = "test1"
-	TestSchema2 = "test2"
-	TestDbPass  = "12345678"
-	CreateTime  = "2018-10-24 10:00:00"
+	TableSize       = 10
+	TableName       = "user"
+	TestSchema1     = "test1"
+	TestSchema2     = "test2"
+	TestPartitionDB = "test3"
+	TestDbPass      = "12345678"
+	CreateTime      = "2018-10-24 10:00:00"
 )
 
 var (
 	db  gdb.DB
 	db2 gdb.DB
+	db3 gdb.DB
 	ctx = context.TODO()
 )
 
@@ -59,8 +60,12 @@ func init() {
 	if _, err := db.Exec(ctx, fmt.Sprintf(schemaTemplate, TestSchema2)); err != nil {
 		gtest.Error(err)
 	}
+	if _, err := db.Exec(ctx, fmt.Sprintf(schemaTemplate, TestPartitionDB)); err != nil {
+		gtest.Error(err)
+	}
 	db = db.Schema(TestSchema1)
 	db2 = db.Schema(TestSchema2)
+	db3 = db.Schema(TestPartitionDB)
 }
 
 func createTable(table ...string) string {
