@@ -9,11 +9,21 @@ package mssql
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gcode"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/text/gstr"
+)
+
+const (
+	// timezoneParamName is the connection parameter naming the time zone in which the underlying
+	// driver reads values of the types without time zone, like datetime and datetime2.
+	timezoneParamName = "timezone"
+	// timezoneDefault is the local time zone, in which such values are written,
+	// used unless the configuration sets the parameter.
+	timezoneDefault = "Local"
 )
 
 // Open creates and returns an underlying sql.DB object for mssql.
@@ -45,6 +55,7 @@ func configNodeToSource(config *gdb.ConfigNode) (string, error) {
 	if config.Port != "" {
 		source = fmt.Sprintf("%s;port=%s", source, config.Port)
 	}
+	hasTimezone := false
 	if config.Extra != "" {
 		extraMap, err := gstr.Parse(config.Extra)
 		if err != nil {
@@ -55,8 +66,14 @@ func configNodeToSource(config *gdb.ConfigNode) (string, error) {
 			)
 		}
 		for k, v := range extraMap {
+			if strings.EqualFold(k, timezoneParamName) {
+				hasTimezone = true
+			}
 			source += fmt.Sprintf(`;%s=%s`, k, v)
 		}
+	}
+	if !hasTimezone {
+		source += fmt.Sprintf(`;%s=%s`, timezoneParamName, timezoneDefault)
 	}
 	return source, nil
 }

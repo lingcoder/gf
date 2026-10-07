@@ -11,6 +11,8 @@ import (
 	"fmt"
 
 	"github.com/gogf/gf/v2/database/gdb"
+	"github.com/gogf/gf/v2/errors/gcode"
+	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/util/gutil"
 )
 
@@ -31,7 +33,7 @@ SELECT
 	ISNULL(dc.definition, '') AS [Default],
 	ISNULL(CAST(ep.value AS nvarchar(max)), '') AS [Comment]
 FROM sys.columns c
-INNER JOIN sys.objects o ON c.object_id = o.object_id AND o.type = 'U' AND o.is_ms_shipped = 0
+INNER JOIN sys.objects o ON c.object_id = o.object_id AND o.type IN ('U', 'V') AND o.is_ms_shipped = 0
 INNER JOIN sys.types t ON c.user_type_id = t.user_type_id
 LEFT JOIN sys.default_constraints dc ON c.default_object_id = dc.object_id
 LEFT JOIN sys.extended_properties ep ON c.object_id = ep.major_id AND c.column_id = ep.minor_id AND ep.name = 'MS_Description'
@@ -70,6 +72,11 @@ func (d *Driver) TableFields(ctx context.Context, table string, schema ...string
 	result, err = d.DoSelect(ctx, link, structureSql)
 	if err != nil {
 		return nil, err
+	}
+	if result.IsEmpty() {
+		return nil, gerror.NewCodef(
+			gcode.CodeNotFound, `table "%s" does not exist in database "%s"`, table, usedSchema,
+		)
 	}
 	fields = make(map[string]*gdb.TableField)
 	for i, m := range result {
