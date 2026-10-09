@@ -24,7 +24,7 @@ const (
 func (d *Driver) DoFilter(
 	ctx context.Context, link gdb.Link, sql string, args []any,
 ) (newSql string, newArgs []any, err error) {
-	newSql = rewriteQuery(convertPlaceholders(sql))
+	newSql = rewriteQuery(convertPlaceholders(rewriteSavePoint(sql)))
 	return d.Core.DoFilter(ctx, link, newSql, args)
 }
 
@@ -124,7 +124,7 @@ type limitClause struct {
 
 // rewriteQuery rewrites the MySQL syntax that the core builds and SQL Server rejects, in
 // `sql` itself and in every parenthesized sub-query, innermost first: a LIMIT or OFFSET clause
-// becomes TOP or OFFSET FETCH, keeping the clauses that follow it such as a lock clause, and an
+// becomes TOP or OFFSET FETCH, a lock clause becomes a table hint by moveLockClause, and an
 // operand of a compound query that has its own ORDER BY becomes a derived table.
 // It returns `sql` unchanged if its parentheses or quotes are unbalanced.
 func rewriteQuery(sql string) string {
@@ -138,7 +138,7 @@ func rewriteQuery(sql string) string {
 		}
 	}
 	if len(tokens) > 0 && (tokens[0].group || tokens[0].is("SELECT") || tokens[0].is("WITH")) {
-		tokens = rewriteLimitClause(rewriteCompoundOperands(tokens))
+		tokens = rewriteLimitClause(rewriteCompoundOperands(moveLockClause(tokens)))
 	}
 	return joinSqlTokens(tokens) + trailing
 }

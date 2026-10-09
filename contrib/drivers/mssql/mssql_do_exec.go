@@ -9,6 +9,7 @@ package mssql
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"fmt"
 	"regexp"
 	"strings"
@@ -38,6 +39,9 @@ const (
 // The INSERT statements of DoInsert return the IDENTITY column of the inserted rows through an
 // OUTPUT clause, whose first value is reported as LastInsertId.
 func (d *Driver) DoExec(ctx context.Context, link gdb.Link, sqlStr string, args ...any) (result sql.Result, err error) {
+	if isReleaseSavePoint(sqlStr) {
+		return driver.RowsAffected(0), nil
+	}
 	identityField, isInsert := ctx.Value(internalIdentityFieldInCtx).(string)
 	if !isInsert {
 		return d.Core.DoExec(ctx, link, sqlStr, args...)
