@@ -221,7 +221,7 @@ func (c *Core) HasField(ctx context.Context, table, field string, schema ...stri
 	field = gstr.Trim(field, charLeft+charRight)
 	foldedField := c.db.FoldIdentifier(field)
 	for _, f := range fieldsArray {
-		if f == field || f == foldedField {
+		if f == field || c.db.FoldIdentifier(f) == foldedField {
 			return true, nil
 		}
 	}
@@ -239,11 +239,7 @@ func (c *Core) guessPrimaryTableName(tableStr string) string {
 		array2           = gstr.SplitAndTrim(array1[0], " ")
 		array3           = gstr.SplitAndTrim(array2[0], ".")
 	)
-	if len(array3) >= 2 {
-		guessedTableName = array3[1]
-	} else {
-		guessedTableName = array3[0]
-	}
+	guessedTableName = array3[len(array3)-1]
 	charL, charR := c.db.GetChars()
 	if charL != "" || charR != "" {
 		guessedTableName = gstr.Trim(guessedTableName, charL+charR)

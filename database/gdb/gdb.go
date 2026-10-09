@@ -362,10 +362,11 @@ type DB interface {
 	// to return their dialect equivalent (e.g. "FOR SHARE" on PostgreSQL).
 	GetLockSharedClause() string
 
-	// FoldIdentifier returns the unquoted identifier `name` in the letter case that the
-	// database stores it in, which is `name` itself in default. Drivers whose dialect folds
-	// unquoted identifiers and reports them folded in TableFields (e.g. Oracle, folding them
-	// to upper case) override it, so that field names are matched as the database resolves them.
+	// FoldIdentifier returns the unquoted identifier `name` folded as the database matches
+	// identifiers, which is `name` itself in default; two identifiers name the same column when
+	// their folded forms are equal. Drivers matching identifiers case-insensitively (e.g. Oracle,
+	// folding unquoted identifiers to upper case, or SQL Server under its default collation)
+	// override it, so that field names are matched as the database resolves them.
 	FoldIdentifier(name string) string
 
 	// GetTableNameForFields returns the table name in the table expression `table` of a model,

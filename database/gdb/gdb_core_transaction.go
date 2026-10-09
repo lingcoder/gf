@@ -227,9 +227,7 @@ func callTxFunc(tx TX, f func(ctx context.Context, tx TX) error) (err error) {
 			}
 		}
 		if err != nil {
-			if e := tx.Rollback(); e != nil {
-				err = e
-			}
+			_ = tx.Rollback()
 		} else {
 			if e := tx.Commit(); e != nil {
 				err = e

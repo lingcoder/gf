@@ -548,8 +548,8 @@ func (c *Core) GetLockSharedClause() string {
 	return LockInShareMode
 }
 
-// FoldIdentifier returns the unquoted identifier `name` in the letter case the database stores it in.
-// Default returns `name` unchanged; drivers folding unquoted identifiers (e.g. Oracle) override.
+// FoldIdentifier returns the unquoted identifier `name` folded as the database matches identifiers.
+// Default returns `name` unchanged; drivers matching identifiers case-insensitively (e.g. Oracle) override.
 func (c *Core) FoldIdentifier(name string) string {
 	return name
 }

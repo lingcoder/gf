@@ -764,10 +764,14 @@ func (m *Model) getFormattedSqlAndArgs(
 			return sqlWithHolder, conditionArgs
 		}
 		conditionWhere, conditionExtra, conditionArgs := m.formatCondition(ctx, false, true)
-		sqlWithHolder = fmt.Sprintf("SELECT %s FROM %s%s", queryFields, m.tables, conditionWhere+conditionExtra)
 		if len(m.groupBy) > 0 {
-			sqlWithHolder = fmt.Sprintf("SELECT COUNT(1) FROM (%s) count_alias", sqlWithHolder)
+			sqlWithHolder = fmt.Sprintf(
+				"SELECT COUNT(1) FROM (SELECT %s AS count_value FROM %s%s) count_alias",
+				queryFields, m.tables, conditionWhere+conditionExtra,
+			)
+			return sqlWithHolder, conditionArgs
 		}
+		sqlWithHolder = fmt.Sprintf("SELECT %s FROM %s%s", queryFields, m.tables, conditionWhere+conditionExtra)
 		return sqlWithHolder, conditionArgs
 
 	default:

@@ -365,6 +365,9 @@ func (m *Model) formatDoInsertOption(insertOption InsertOption, columnNames []st
 	for _, key := range onDuplicateExKeys {
 		onDuplicateExKeySet.Add(m.db.FoldIdentifier(key))
 	}
+	isExcluded := func(name string) bool {
+		return onDuplicateExKeySet.Contains(name) || onDuplicateExKeySet.Contains(m.db.FoldIdentifier(name))
+	}
 	if m.onDuplicate != nil {
 		switch m.onDuplicate.(type) {
 		case Raw, *Raw:
@@ -376,7 +379,7 @@ func (m *Model) formatDoInsertOption(insertOption InsertOption, columnNames []st
 			case reflect.String:
 				option.OnDuplicateMap = make(map[string]any)
 				for _, v := range gstr.SplitAndTrim(reflectInfo.OriginValue.String(), ",") {
-					if onDuplicateExKeySet.Contains(v) {
+					if isExcluded(v) {
 						continue
 					}
 					option.OnDuplicateMap[v] = v
@@ -385,7 +388,7 @@ func (m *Model) formatDoInsertOption(insertOption InsertOption, columnNames []st
 			case reflect.Map:
 				option.OnDuplicateMap = make(map[string]any)
 				for k, v := range gconv.Map(m.onDuplicate) {
-					if onDuplicateExKeySet.Contains(k) {
+					if isExcluded(k) {
 						continue
 					}
 					option.OnDuplicateMap[k] = v
@@ -394,7 +397,7 @@ func (m *Model) formatDoInsertOption(insertOption InsertOption, columnNames []st
 			case reflect.Slice, reflect.Array:
 				option.OnDuplicateMap = make(map[string]any)
 				for _, v := range gconv.Strings(m.onDuplicate) {
-					if onDuplicateExKeySet.Contains(v) {
+					if isExcluded(v) {
 						continue
 					}
 					option.OnDuplicateMap[v] = v
@@ -411,7 +414,7 @@ func (m *Model) formatDoInsertOption(insertOption InsertOption, columnNames []st
 	} else if onDuplicateExKeySet.Size() > 0 {
 		option.OnDuplicateMap = make(map[string]any)
 		for _, v := range columnNames {
-			if onDuplicateExKeySet.Contains(v) {
+			if isExcluded(v) {
 				continue
 			}
 			option.OnDuplicateMap[v] = v
