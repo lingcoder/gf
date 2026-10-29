@@ -65,18 +65,18 @@ jobs:
       id: cache-month
       run: echo "month=$(date +%Y%m)" >> "$GITHUB_OUTPUT"
 
-    # Only the latest Go version saves the cache, on master pushes, to stay within
-    # the 10GB repository budget.
-    - name: Restore Go cache
-      id: go-cache
+    - name: Restore Go module cache
       uses: actions/cache/restore@v6
       with:
-        path: |
-          ~/go/pkg/mod
-          ~/.cache/go-build
-        key: ${{ runner.os }}-go-sub-${{ matrix.go-version }}-${{ steps.cache-month.outputs.month }}
-        restore-keys: |
-          ${{ runner.os }}-go-sub-${{ matrix.go-version }}-
+        path: ~/go/pkg/mod
+        key: ${{ runner.os }}-go-mod-sub-${{ hashFiles('go.mod', 'go.sum') }}
+
+    - name: Restore Go build cache
+      id: build-cache
+      uses: actions/cache/restore@v6
+      with:
+        path: ~/.cache/go-build
+        key: ${{ runner.os }}-go-build-sub-${{ matrix.go-version }}-${{ steps.cache-month.outputs.month }}
 
     - name: Before Script
       run:  bash .github/workflows/scripts/before_script.sh
@@ -84,14 +84,18 @@ jobs:
     - name: Build & Test
       run: bash .github/workflows/scripts/ci-sub.sh
 
-    - name: Save Go cache
-      # Cache entries are immutable, so this month's entry is only saved once.
-      if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && matrix.go-version == env.LATEST_GO_VERSION && steps.go-cache.outputs.cache-hit != 'true' }}
+    - name: Save Go module cache
+      if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && matrix.go-version == env.LATEST_GO_VERSION }}
       uses: actions/cache/save@v6
       with:
-        path: |
-          ~/go/pkg/mod
-          ~/.cache/go-build
-        key: ${{ steps.go-cache.outputs.cache-primary-key }}
+        path: ~/go/pkg/mod
+        key: ${{ runner.os }}-go-mod-sub-${{ hashFiles('go.mod', 'go.sum') }}
+
+    - name: Save Go build cache
+      if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && matrix.go-version == env.LATEST_GO_VERSION && steps.build-cache.outputs.cache-hit != 'true' }}
+      uses: actions/cache/save@v6
+      with:
+        path: ~/.cache/go-build
+        key: ${{ runner.os }}-go-build-sub-${{ matrix.go-version }}-${{ steps.cache-month.outputs.month }}
 
 
